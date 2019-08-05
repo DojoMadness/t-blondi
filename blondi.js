@@ -68,196 +68,222 @@ var browser;
         
         //Iterate over channels we found. ignore blacklisted, apply filters and so on
         for (; channelIndex < channels.length; channelIndex++) {
-            channel = channels[channelIndex]
-            const splitted = channel.split("/")
-            //filter blacklisted channels
-            if (blacklisted.includes(splitted[splitted.length-1])) {
-                console.log(`${channel} is blacklisted`)
-            } else {
-                //Navigate to about page...
-                console.log(`extracting data from ${channel}`)
-                console.log("...about")
-                await dataPage.goto(yt.getAboutPage(channel))
+            try {
+                channel = channels[channelIndex]
+                const splitted = channel.split("/")
+                //filter blacklisted channels
+                if (blacklisted.includes(splitted[splitted.length-1])) {
+                    console.log(`${channel} is blacklisted`)
+                } else {
+                    //Navigate to about page...
+                    console.log(`extracting data from ${channel}`)
+                    console.log("...about")
+                    await dataPage.goto(yt.getAboutPage(channel), {waitUntil: 'load', timeout: 1})
 
-                //Scrolling up so it'll load the header elements
-                await dataPage.evaluate(() => {
-                    window.scrollBy(0, -1000)
-                })
+                    //Scrolling up so it'll load the header elements
+                    await dataPage.evaluate(() => {
+                        window.scrollBy(0, -1000)
+                    })
 
-                //Extracting data from "about" page
-                var aboutPageData = await dataPage.evaluate(selectors => {
+                    //Extracting data from "about" page
+                    var aboutPageData = await dataPage.evaluate(selectors => {
 
-                    function getChannelId() {
-                        var result = null
-                        var link = document.querySelector("link[rel='alternate']")
-                        if (link) {
-                            var href = link.href
-                            if (href) {
-                                var chunks = href.split("/")
-                                result = chunks[chunks.length - 1]
+                        function getChannelId() {
+                            var result = null
+                            var link = document.querySelector("link[rel='alternate']")
+                            if (link) {
+                                var href = link.href
+                                if (href) {
+                                    var chunks = href.split("/")
+                                    result = chunks[chunks.length - 1]
+                                }
+                            }
+                            return result
+                        }
+
+                        const output = {}
+                        
+                        //title
+                        titleElement = document.querySelector(selectors.divTitle) || document.querySelector(selectors.spanTitle) || { innerText: "---" }
+                        output.title = titleElement.innerText
+
+                        //subscriptions
+                        const subCounter =  document.querySelector(selectors.subscribersCount)
+                        if (subCounter) {
+                            subsCounterText = subCounter.innerHTML
+                            if (subsCounterText) {
+                                output.subscriptions = subsCounterText.split(" ")[0].split(",").join("")
                             }
                         }
-                        return result
-                    }
 
-                    const output = {}
-                    
-                    //title
-                    titleElement = document.querySelector(selectors.divTitle) || document.querySelector(selectors.spanTitle) || { innerText: "---" }
-                    output.title = titleElement.innerText
-
-                    //subscriptions
-                    const subCounter =  document.querySelector(selectors.subscribersCount)
-                    if (subCounter) {
-                        subsCounterText = subCounter.innerHTML
-                        if (subsCounterText) {
-                            output.subscriptions = subsCounterText.split(" ")[0].split(",").join("")
+                        //views
+                        const rightColumnElements = document.querySelectorAll(selectors.rightColumn)
+                        for (i = 0; i < rightColumnElements.length; i++) {
+                            const elementText = rightColumnElements[i].innerText
+                            if (elementText.endsWith("views")) {
+                                output.views = elementText.split(" ")[0].split(",").join("")
+                                break
+                            }
                         }
-                    }
 
-                    //views
-                    const rightColumnElements = document.querySelectorAll(selectors.rightColumn)
-                    for (i = 0; i < rightColumnElements.length; i++) {
-                        const elementText = rightColumnElements[i].innerText
-                        if (elementText.endsWith("views")) {
-                            output.views = elementText.split(" ")[0].split(",").join("")
-                            break
-                        }
-                    }
+                        output.channelId = getChannelId()
 
-                    output.channelId = getChannelId()
-
-                    return output
-            
-                }, yt.channelAboutSelectors)
-
-                aboutPageData.handle = yt.getUserHandle(dataPage.url())
-
-                // Applying filters
-                if (minSubscriptions)
-                    if (aboutPageData.subscriptions < minSubscriptions){
-                        console.log("too few subscriptions")
-                        continue
-                    }
+                        return output
                 
-                if (maxSubscriptions)
-                    if (aboutPageData.subscriptions > maxSubscriptions) {
-                        console.log("too many subscriptions")
-                        continue
-                    }
+                    }, yt.channelAboutSelectors)
 
-                if (minTotalViews)
-                    if (!aboutPageData.views || aboutPageData.views < minTotalViews) {
-                        console.log("too few total views")
-                        continue
-                    }
+                    aboutPageData.handle = yt.getUserHandle(dataPage.url())
 
-                if (maxTotalViews)
-                    if (!aboutPageData.views || aboutPageData.views > maxTotalViews) {
-                        console.log("too many total views")
-                        continue
-                    }
+                    // Applying filters
+                    if (minSubscriptions)
+                        if (aboutPageData.subscriptions < minSubscriptions){
+                            console.log("too few subscriptions")
+                            continue
+                        }
+                    
+                    if (maxSubscriptions)
+                        if (aboutPageData.subscriptions > maxSubscriptions) {
+                            console.log("too many subscriptions")
+                            continue
+                        }
+
+                    if (minTotalViews)
+                        if (!aboutPageData.views || aboutPageData.views < minTotalViews) {
+                            console.log("too few total views")
+                            continue
+                        }
+
+                    if (maxTotalViews)
+                        if (!aboutPageData.views || aboutPageData.views > maxTotalViews) {
+                            console.log("too many total views")
+                            continue
+                        }
 
 
-                console.log("...videos")
-                //Navigate to "videos" page
-                await dataPage.goto(yt.getVideosPage(channel))
-                //Extracting lastest videos data
-                var videoPageData = await dataPage.evaluate(() => {
+                    console.log("...videos")
+                    //Navigate to "videos" page
+                    await dataPage.goto(yt.getVideosPage(channel))
+                    //Extracting lastest videos data
+                    var videoPageData = await dataPage.evaluate(() => {
 
-                    function median(values) {
-                        values.sort()
-                        var median
-                        if (values.length % 2) {
-                            median = values[(values.length-1) / 2]
+                        function median(values) {
+                            values.sort()
+                            var median
+                            if (values.length % 2) {
+                                median = values[(values.length-1) / 2]
+                            } else {
+                                median = (values[values.length/2-1] + values[values.length/2])/2
+                            }
+                            return median
+                        }
+
+                        //convert views count string to integer value
+                        function parseViews(value) {
+                            if (value.endsWith("K")) {
+                                value = value.slice(0, -1)
+                                return value * 1000
+                            } else if (value.endsWith("M")) {
+                                value = value.slice(0, -1)
+                                return value * 1000000
+                            } else if (value.endsWith("B")) {
+                                value = value.slice(0, -1)
+                                return value * 1000000000
+                            } else if (isNaN(value)) {
+                                return 0 //unexpected value
+                            } else {
+                                return value * 1 // to int???
+                            }
+                        }
+
+                        //convert upload data string to int (months)
+                        function parseUploadDateInMonths(value) {
+                            var chuncks = value.split(" ")
+                            if (chuncks.length == 3 && chuncks[2] == "ago") {
+                                return chuncks[0] * getFactorForTimeUnit(chuncks[1])
+                            }
+                            return 0
+                        }
+
+                        function getFactorForTimeUnit(unit) {
+                            if (unit.startsWith("month")) {
+                                return 1
+                            } else if (unit.startsWith("year")) {
+                                return 12
+                            } else {
+                                return 0
+                            }
+                        }
+
+                        // get "46k views" (for instance) span
+                        const viewLabels = document.querySelectorAll("ytd-grid-video-renderer #metadata-line span:first-child")
+                        if (viewLabels.length > 0) {
+                            var min = Number.MAX_SAFE_INTEGER
                         } else {
-                            median = (values[values.length/2-1] + values[values.length/2])/2
-                        }
-                        return median
-                    }
-
-                    //convert views count string to integer value
-                    function parseViews(value) {
-                        if (value.endsWith("K")) {
-                            value = value.slice(0, -1)
-                            return value * 1000
-                        } else if (value.endsWith("M")) {
-                            value = value.slice(0, -1)
-                            return value * 1000000
-                        } else if (value.endsWith("B")) {
-                            value = value.slice(0, -1)
-                            return value * 1000000000
-                        } else if (isNaN(value)) {
-                            return 0 //unexpected value
-                        } else {
-                            return value * 1 // to int???
-                        }
-                    }
-
-                    // get "46k views" (for instance) span
-                    const viewLabels = document.querySelectorAll("ytd-grid-video-renderer #metadata-line span:first-child")
-                    if (viewLabels.length > 0) {
-                        var min = Number.MAX_SAFE_INTEGER
-                    } else {
-                        var min = 0
-                    }
-                    var max = 0
-                    var sum = 0
-                    var labels = []
-                    var viewValues = []
-                    for (i = 0; i < viewLabels.length; i++) {
-                        
-                        const label = viewLabels[i].innerText
-                        labels.push(label)
-                        const viewCount = parseViews(label.split(" ")[0])
-                        viewValues.push(viewCount)
-                        sum += viewCount
-                        
-                        if (viewCount > max) {
-                            max = viewCount
+                            var min = 0
                         }
 
-                        if (viewCount < min) {
-                            min = viewCount
+                        //const dataLabel = document.querySelectorAll("ytd-grid-video-renderer #metadata-line span:nth-child(2)")
+
+                        var max = 0
+                        var sum = 0
+                        var labels = []
+                        var viewValues = []
+                        for (i = 0; i < viewLabels.length; i++) {
+                            
+                            const label = viewLabels[i].innerText
+                            labels.push(label)
+                            const viewCount = parseViews(label.split(" ")[0])
+                            viewValues.push(viewCount)
+                            sum += viewCount
+                            
+                            if (viewCount > max) {
+                                max = viewCount
+                            }
+
+                            if (viewCount < min) {
+                                min = viewCount
+                            }
                         }
+
+                        const avg = sum / viewLabels.length
+
+                        return {
+                            "labels": labels,
+                            "mostPop": max,
+                            "leastPop": min,
+                            "average": Math.round(avg),
+                            "median": median(viewValues),
+                            "sum" : sum,
+                            "count": viewLabels.length
+                        }
+                    })
+
+                    //Applying filters again
+                    if (minAvgRecentViews)
+                        if (!videoPageData.average || videoPageData.average < minAvgRecentViews) {
+                            console.log("too few average recent views")
+                            continue
+                        }
+
+                    if (maxAvgRecentViews)
+                        if (!videoPageData.average || videoPageData.average > maxAvgRecentViews) {
+                            console.log("too many average recent views")
+                            continue
+                        }
+
+                    data.push({
+                        aboutPageData: aboutPageData,
+                        videoPageData: videoPageData,
+                        channel: channel
+                    })
+
+                    //If there are enough items, stop scraping
+                    if (data.length == minChannelAmount) {
+                        break
                     }
-
-                    const avg = sum / viewLabels.length
-
-                    return {
-                        "labels": labels,
-                        "mostPop": max,
-                        "leastPop": min,
-                        "average": Math.round(avg),
-                        "median": median(viewValues),
-                        "sum" : sum,
-                        "count": viewLabels.length
-                    }
-                })
-
-                //Applying filters again
-                if (minAvgRecentViews)
-                    if (!videoPageData.average || videoPageData.average < minAvgRecentViews) {
-                        console.log("too few average recent views")
-                        continue
-                    }
-
-                if (maxAvgRecentViews)
-                    if (!videoPageData.average || videoPageData.average > maxAvgRecentViews) {
-                        console.log("too many average recent views")
-                        continue
-                    }
-
-                data.push({
-                    aboutPageData: aboutPageData,
-                    videoPageData: videoPageData,
-                    channel: channel
-                })
-
-                //If there are enough items, stop scraping
-                if (data.length == minChannelAmount) {
-                    break
                 }
+            } catch (ex) {
+                console.log("oops: " + ex)
             }
         }
 
@@ -274,6 +300,7 @@ var browser;
         } else {
             break
         }
+    
     }
 
 
