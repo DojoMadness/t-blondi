@@ -78,7 +78,7 @@ var browser;
                     //Navigate to about page...
                     console.log(`extracting data from ${channel}`)
                     console.log("...about")
-                    await dataPage.goto(yt.getAboutPage(channel), {waitUntil: 'load', timeout: 1})
+                    await dataPage.goto(yt.getAboutPage(channel))
 
                     //Scrolling up so it'll load the header elements
                     await dataPage.evaluate(() => {
