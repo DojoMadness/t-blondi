@@ -23,7 +23,8 @@ It's is possible to choose the amount of channels you want to scrap. You can als
     "minTotalViews" : 0,
     "maxTotalViews" : 0,
     "minAvgRecentViews" : 0,
-    "maxAvgRecentViews" : 0
+    "maxAvgRecentViews" : 0,
+    "maxInactivityThresholdMonths" : 0
 }
 ```
 
@@ -33,7 +34,8 @@ It's is possible to choose the amount of channels you want to scrap. You can als
 - `minTotalViews`: will ignore channels with fewer total views than this value;
 - `maxTotalViews`: will ignore channels with more total views than this value;
 - `minAvgRecentViews`: will ignore channels with fewer average recent views than this value;
-- `maxAvgRecentViews`: will ignore channels with more average recent views than this value.
+- `maxAvgRecentViews`: will ignore channels with more average recent views than this value;
+- `maxInactivityThresholdMonths`: doesn't fetch channels whose most recent upload are older (in months) than the value of this parameter.
 
 The script will ignore any filter for which the value is set to 0.
 

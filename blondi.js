@@ -24,6 +24,8 @@ const minTotalViews = properties.minTotalViews
 const maxTotalViews = properties.maxTotalViews
 const minAvgRecentViews = properties.minAvgRecentViews
 const maxAvgRecentViews = properties.maxAvgRecentViews
+const maxInactivityThresholdMonths = properties.maxInactivityThresholdMonths
+
 
 var browser;
 
@@ -222,14 +224,14 @@ var browser;
                             var min = 0
                         }
 
-                        //const dataLabel = document.querySelectorAll("ytd-grid-video-renderer #metadata-line span:nth-child(2)")
-
                         var max = 0
                         var sum = 0
                         var labels = []
                         var viewValues = []
+
                         for (i = 0; i < viewLabels.length; i++) {
                             
+                            //view
                             const label = viewLabels[i].innerText
                             labels.push(label)
                             const viewCount = parseViews(label.split(" ")[0])
@@ -245,6 +247,9 @@ var browser;
                             }
                         }
 
+                        const uploadDataLabel = document.querySelector("ytd-grid-video-renderer #metadata-line span:nth-child(2)")
+                        const lastUploadDate = parseUploadDateInMonths(uploadDataLabel.innerText)
+
                         const avg = sum / viewLabels.length
 
                         return {
@@ -254,6 +259,7 @@ var browser;
                             "average": Math.round(avg),
                             "median": median(viewValues),
                             "sum" : sum,
+                            "lastUploadDate" : lastUploadDate,
                             "count": viewLabels.length
                         }
                     })
@@ -271,6 +277,12 @@ var browser;
                             continue
                         }
 
+                    if (maxInactivityThresholdMonths)
+                        if (videoPageData.lastUploadDate >= maxInactivityThresholdMonths) {
+                            console.log("last video upload happened too long ago")
+                            continue
+                        }
+
                     data.push({
                         aboutPageData: aboutPageData,
                         videoPageData: videoPageData,
@@ -283,7 +295,7 @@ var browser;
                     }
                 }
             } catch (ex) {
-                console.log("oops: " + ex)
+                console.trace(ex)
             }
         }
 
@@ -306,7 +318,7 @@ var browser;
 
     //Exporting data into csv file
     var exportableData = []
-    var defaultFields = ["Influencer", "subs_count", "view_count", "most_views_recent", "least_views_recent", "avg_view", "median_views", "about_link", "customURL", "channel_id"]
+    var defaultFields = ["Influencer", "subs_count", "view_count", "most_views_recent", "least_views_recent", "avg_view", "median_views", "about_link", "customURL", "channel_id", "months_since_last_upload"]
     var templateFields = template.getTemplate()
     
     for (i = 0; i < data.length; i++) {
@@ -336,6 +348,12 @@ var browser;
 
         if (recentViews.median) {
             exportable.median_views = recentViews.median
+        }
+
+        if (recentViews.lastUploadDate) {
+            exportable.months_since_last_upload = recentViews.lastUploadDate
+        } else {
+            exportable.months_since_last_upload = "0"
         }
 
         if (channelData.aboutPageData.handle) {
